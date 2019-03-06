@@ -8,6 +8,8 @@
 
 #import <Cocoa/Cocoa.h>
 
+extern NSString *const numberPrefix;
+
 @interface NSTextView (Autocomplete)
 
 - (BOOL)substringInRange:(NSRange)range isSurroundedByPrefix:(NSString *)prefix

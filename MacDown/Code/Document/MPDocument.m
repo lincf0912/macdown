@@ -1408,18 +1408,18 @@ static void (^MPGetPreviewLoadingCompletionHandler(MPDocument *doc))()
 
 - (IBAction)toggleOrderedList:(id)sender
 {
-    [self.editor toggleBlockWithPattern:@"^[0-9]+ \\S" prefix:@"1. "];
+    [self.editor toggleBlockWithPattern:@"^[0-9]+\\. ?" prefix:numberPrefix];
 }
 
 - (IBAction)toggleUnorderedList:(id)sender
 {
     NSString *marker = self.preferences.editorUnorderedListMarker;
-    [self.editor toggleBlockWithPattern:@"^[\\*\\+-] \\S" prefix:marker];
+    [self.editor toggleBlockWithPattern:@"^[\\*\\+-] ?" prefix:marker];
 }
 
 - (IBAction)toggleBlockquote:(id)sender
 {
-    [self.editor toggleBlockWithPattern:@"^> \\S" prefix:@"> "];
+    [self.editor toggleBlockWithPattern:@"^> ?" prefix:@"> "];
 }
 
 - (IBAction)indent:(id)sender

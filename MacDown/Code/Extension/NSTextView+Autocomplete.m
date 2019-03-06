@@ -10,6 +10,7 @@
 #import "NSString+Lookup.h"
 #import "MPUtilities.h"
 
+NSString *const numberPrefix = @". ";
 
 static const unichar kMPLeftSingleQuotation  = L'\u2018';
 static const unichar kMPRightSingleQuotation = L'\u2019';
@@ -324,6 +325,28 @@ static NSString * const kMPBlockquoteLinePattern = @"^((?:\\> ?)+).*$";
     NSString *content = self.string;
     NSRange selectedRange = self.selectedRange;
     NSRange lineRange = [content lineRangeForRange:selectedRange];
+    /** 重置选择range */
+    selectedRange.location = lineRange.location;
+    selectedRange.length = lineRange.length;
+    
+    BOOL isNumberPrefix = [prefix isEqualToString:numberPrefix];
+    NSInteger number = 1;
+    if (isNumberPrefix && lineRange.location > 0) {
+        /** 获取上一行的序号 */
+        NSRange preLineRange = [content lineRangeForRange:NSMakeRange(lineRange.location-1, 0)];
+        NSString *preLine = [content substringWithRange:preLineRange];
+        NSRange matchRange =
+        [regex rangeOfFirstMatchInString:preLine options:0
+                                   range:NSMakeRange(0, preLine.length)];
+        if (matchRange.length > 0)
+        {
+            NSString *indexStr = [[preLine substringWithRange:matchRange] stringByReplacingOccurrencesOfString:numberPrefix withString:@""];
+            NSInteger c_index = [indexStr integerValue];
+            if (c_index > 0) {
+                number = c_index+1;
+            }
+        }
+    }
 
     NSString *toProcess = [content substringWithRange:lineRange];
     BOOL hasTrailingNewline = NO;
@@ -334,34 +357,51 @@ static NSString * const kMPBlockquoteLinePattern = @"^((?:\\> ?)+).*$";
     }
 
     NSArray *lines = [toProcess componentsSeparatedByString:@"\n"];
-
-    BOOL isMarked = YES;
-    for (NSString *line in lines)
-    {
-        NSRange matchRange =
-            [regex rangeOfFirstMatchInString:line options:0
-                                       range:NSMakeRange(0, line.length)];
-        if (matchRange.location == NSNotFound)
-        {
-            isMarked = NO;
-            break;
-        }
-    }
-
-    NSUInteger prefixLength = prefix.length;
+    
     NSMutableArray *modLines = [NSMutableArray arrayWithCapacity:lines.count];
 
-    __block NSUInteger totalShift = 0;
-    [lines enumerateObjectsUsingBlock:^(id obj, NSUInteger index, BOOL *stop) {
-        NSString *line = obj;
-        if (line.length)
-            totalShift += prefixLength;
-        if (!isMarked)
-            line = [prefix stringByAppendingString:line];
-        else
-            line = [line substringFromIndex:prefixLength];
-        [modLines addObject:line];
-    }];
+    NSString *newPrefix = prefix;
+    NSUInteger prefixLength = newPrefix.length;
+    
+    NSUInteger totalShift = 0;
+    NSString *tempLine = nil;
+    
+    /** 判断选中的第一行是否包含通配符 */
+    BOOL isMarked = YES;
+    NSString *line = lines.firstObject;
+    NSRange matchRange =
+    [regex rangeOfFirstMatchInString:line options:0
+                               range:NSMakeRange(0, line.length)];
+    if (matchRange.location == NSNotFound)
+    {
+        isMarked = NO;
+    }
+    
+    for (NSString *line in lines)
+    {
+        tempLine = line;
+        
+        if (!isMarked) {
+            if (isNumberPrefix) {
+                newPrefix = [NSString stringWithFormat:@"%ld%@", (long)number, prefix];
+                number ++;
+                prefixLength = newPrefix.length;
+            }
+            tempLine = [newPrefix stringByAppendingString:tempLine];
+        }
+        else {
+            if (isNumberPrefix) {
+                NSRange matchRange =
+                [regex rangeOfFirstMatchInString:line options:0
+                                           range:NSMakeRange(0, line.length)];
+                prefixLength = matchRange.length;
+            }
+            
+            tempLine = [tempLine substringFromIndex:prefixLength];
+        }
+        [modLines addObject:tempLine];
+        totalShift += prefixLength;
+    }
 
     NSString *processed = [modLines componentsJoinedByString:@"\n"];
     if (hasTrailingNewline)
@@ -370,28 +410,11 @@ static NSString * const kMPBlockquoteLinePattern = @"^((?:\\> ?)+).*$";
 
     if (!isMarked)
     {
-        selectedRange.location += prefixLength;
-        if (selectedRange.length + totalShift >= prefixLength)
-            selectedRange.length += totalShift - prefixLength;
-        else    // Underflow.
-            selectedRange.length = 0;
+        selectedRange.length += totalShift;
     }
     else
     {
-        if (prefixLength <= selectedRange.location)
-            selectedRange.location -= prefixLength;
-        else    // Underflow.
-            selectedRange.location = 0;
-        if (totalShift - prefixLength <= selectedRange.length)
-            selectedRange.length -= totalShift - prefixLength;
-        else    // Underflow.
-            selectedRange.length = 0;
-
-        if (selectedRange.location < lineRange.location)
-        {
-            selectedRange.length -= lineRange.location - selectedRange.location;
-            selectedRange.location = lineRange.location;
-        }
+        selectedRange.length -= totalShift;
     }
     self.selectedRange = selectedRange;
 }
